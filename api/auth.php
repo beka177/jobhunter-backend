@@ -1,6 +1,5 @@
 <?php
 require 'db.php';
-
 header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? '';
@@ -23,9 +22,11 @@ if ($action === 'register') {
 
     $hash = password_hash($input['password'], PASSWORD_DEFAULT);
     $role = $input['role'] ?? 'seeker';
+    $avatar = $input['avatar'] ?? null; // Получаем аватар
 
-    $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)");
-    if ($stmt->execute([$input['name'], $input['email'], $hash, $role])) {
+    // Вставляем аватар в базу
+    $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?)");
+    if ($stmt->execute([$input['name'], $input['email'], $hash, $role, $avatar])) {
         echo json_encode(['message' => 'Регистрация успешна']);
     } else {
         http_response_code(500);
@@ -44,18 +45,15 @@ if ($action === 'register') {
     $user = $stmt->fetch();
 
     if ($user && password_verify($input['password'], $user['password'])) {
-        unset($user['password']); // Не отправляем пароль
+        unset($user['password']);
         echo json_encode([
             'message' => 'Вход успешен',
             'user' => $user,
-            'token' => 'fake-jwt-token-for-coursework' 
+            'token' => 'fake' 
         ]);
     } else {
         http_response_code(401);
         echo json_encode(['message' => 'Неверный логин или пароль']);
     }
-} else {
-    http_response_code(400);
-    echo json_encode(['message' => 'Invalid action']);
 }
 ?>
