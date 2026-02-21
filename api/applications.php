@@ -4,17 +4,20 @@ header('Content-Type: application/json');
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+// -------------------------
+// GET: список откликов
+// -------------------------
 if ($method === 'GET') {
     $employer_id = $_GET['employer_id'] ?? null;
     $seeker_id = $_GET['seeker_id'] ?? null;
 
     if ($employer_id) {
-        // Добавлено поле u.avatar в выборку
+        // Для работодателя возвращаем подробную информацию по каждому отклику:
         $sql = "
             SELECT a.id, a.created_at, a.status,
                    v.title as vacancy_title,
                    u.name as seeker_name, u.email as seeker_email, u.avatar,
-                   r.surname, r.first_name, r.patronymic, 
+                   r.surname, r.first_name, r.patronymic,
                    r.gender, r.city, r.phone, r.birthday, r.citizenship, r.work_permit,
                    r.profession, r.skills,
                    r.education_level, r.education_institution, r.education_faculty
@@ -30,6 +33,7 @@ if ($method === 'GET') {
         echo json_encode($stmt->fetchAll());
     } 
     elseif ($seeker_id) {
+        // Для соискателя возвращаем список его откликов с базовой информацией о вакансии
         $sql = "
             SELECT a.id, a.created_at, a.status,
                    v.title as vacancy_title, v.salary,
@@ -46,8 +50,12 @@ if ($method === 'GET') {
     }
 }
 
+// -------------------------
+// POST: создание отклика
+// -------------------------
 elseif ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
+
     $check = $pdo->prepare("SELECT id FROM applications WHERE vacancy_id = ? AND seeker_id = ?");
     $check->execute([$input['vacancy_id'], $input['seeker_id']]);
     if ($check->fetch()) {
@@ -55,13 +63,19 @@ elseif ($method === 'POST') {
         echo json_encode(['message' => 'Вы уже откликнулись на эту вакансию ранее']);
         exit;
     }
+
     $stmt = $pdo->prepare("INSERT INTO applications (vacancy_id, seeker_id) VALUES (?, ?)");
     $stmt->execute([$input['vacancy_id'], $input['seeker_id']]);
 }
 
+// -------------------------
+// PATCH: изменение статуса отклика
+// -------------------------
 elseif ($method === 'PATCH') {
     $input = json_decode(file_get_contents('php://input'), true);
+
     $stmt = $pdo->prepare("UPDATE applications SET status = ? WHERE id = ?");
     $stmt->execute([$input['status'], $input['id']]);
 }
+
 ?>

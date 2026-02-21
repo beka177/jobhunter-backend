@@ -1,11 +1,18 @@
 <?php
+// Файл: resumes.php
+// Управление резюме пользователя.
+// - GET  ?user_id=...   -> получить резюме (или null если нет)
+// - POST -> создать или обновить резюме (JSON в теле)
+
 require 'db.php';
 
 header('Content-Type: application/json');
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// GET: Получить резюме пользователя
+// -------------------------
+// GET: получить резюме по user_id
+// -------------------------
 if ($method === 'GET') {
     $user_id = $_GET['user_id'] ?? null;
     if (!$user_id) {
@@ -14,14 +21,18 @@ if ($method === 'GET') {
         exit;
     }
 
+    // Простое выборка всех полей из таблицы resumes по user_id
     $stmt = $pdo->prepare("SELECT * FROM resumes WHERE user_id = ?");
     $stmt->execute([$user_id]);
     $resume = $stmt->fetch();
 
-    echo json_encode($resume ?: null); // Возвращаем null если резюме нет, это нормально
+    // Возвращаем объект резюме или null (если резюме нет). Клиент ожидает именно null.
+    echo json_encode($resume ?: null);
 }
 
-// POST: Создать или Обновить резюме
+// -------------------------
+// POST: создать или обновить резюме
+// -------------------------
 elseif ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     
@@ -31,8 +42,9 @@ elseif ($method === 'POST') {
         exit;
     }
 
-    // Используем магию MySQL: INSERT ... ON DUPLICATE KEY UPDATE
-    // Если резюме нет -> создаст. Если есть -> обновит.
+    // Используется паттерн INSERT ... ON DUPLICATE KEY UPDATE,
+    // чтобы одним запросом создать новую запись или обновить существующую.
+    // Таблица resumes должна иметь UNIQUE(user_id) или PRIMARY KEY по user_id.
     $sql = "INSERT INTO resumes (
                 user_id, surname, first_name, patronymic, gender, city, phone, 
                 birthday, citizenship, work_permit, profession,
@@ -51,7 +63,8 @@ elseif ($method === 'POST') {
 
     $stmt = $pdo->prepare($sql);
     
-    // Внимание: порядок переменных должен совпадать с порядком вопросительных знаков выше!
+    // Важно: порядок элементов в массиве $params должен строго соответствовать порядку
+    // местозаполнителей (?) в SQL-выражении выше.
     $params = [
         $input['user_id'], $input['surname'] ?? '', $input['first_name'] ?? '', $input['patronymic'] ?? '',
         $input['gender'] ?? 'male', $input['city'] ?? '', $input['phone'] ?? '',
@@ -68,4 +81,5 @@ elseif ($method === 'POST') {
         echo json_encode(['message' => 'Database error']);
     }
 }
+
 ?>
