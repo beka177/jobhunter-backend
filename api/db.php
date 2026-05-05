@@ -31,4 +31,13 @@ try {
         throw new \PDOException($e2->getMessage(), (int)$e2->getCode());
     }
 }
+
+// Auto-migration: Ensure needed columns exist
+try {
+    $pdo->exec("ALTER TABLE vacancies ADD COLUMN city VARCHAR(255) NULL");
+} catch (PDOException $e) {}
+
+try {
+    $pdo->exec("ALTER TABLE users ADD COLUMN avatar VARCHAR(255) NULL");
+} catch (PDOException $e) {}
 ?>

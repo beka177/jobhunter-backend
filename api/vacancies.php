@@ -27,6 +27,7 @@ if ($method === 'POST') {
     $description = $data['description'] ?? null;
     $salary = $data['salary'] ?? null;
     $image = $data['image'] ?? null;
+    $city = $data['city'] ?? null;
 
     if (!$employer_id || !$title || !$description) {
         http_response_code(400);
@@ -34,8 +35,8 @@ if ($method === 'POST') {
         exit;
     }
 
-    $stmt = $pdo->prepare("INSERT INTO vacancies (employer_id, title, description, salary, image) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([$employer_id, $title, $description, $salary, $image]);
+    $stmt = $pdo->prepare("INSERT INTO vacancies (employer_id, title, description, salary, image, city) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$employer_id, $title, $description, $salary, $image, $city]);
     echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
 }
 
@@ -46,6 +47,7 @@ if ($method === 'PUT') {
     $description = $data['description'] ?? null;
     $salary = $data['salary'] ?? null;
     $image = $data['image'] ?? null;
+    $city = $data['city'] ?? null;
 
     if (!$id || !$title || !$description) {
         http_response_code(400);
@@ -53,8 +55,8 @@ if ($method === 'PUT') {
         exit;
     }
 
-    $stmt = $pdo->prepare("UPDATE vacancies SET title = ?, description = ?, salary = ?, image = ? WHERE id = ?");
-    $stmt->execute([$title, $description, $salary, $image, $id]);
+    $stmt = $pdo->prepare("UPDATE vacancies SET title = ?, description = ?, salary = ?, image = ?, city = ? WHERE id = ?");
+    $stmt->execute([$title, $description, $salary, $image, $city, $id]);
     echo json_encode(['success' => true]);
 }
 

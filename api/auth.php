@@ -10,13 +10,14 @@ if ($method === 'OPTIONS') {
 
 if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
-    $action = $data['action'] ?? 'login';
+    $action = $_GET['action'] ?? $data['action'] ?? 'login';
 
     if ($action === 'register') {
         $name = $data['name'];
         $email = $data['email'];
         $password = password_hash($data['password'], PASSWORD_DEFAULT);
         $role = $data['role'];
+        $avatar = $data['avatar'] ?? null;
 
         // Запрещаем регистрацию админов через обычную форму
         if ($role === 'admin') {
@@ -24,9 +25,12 @@ if ($method === 'POST') {
         }
 
         try {
-            $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$name, $email, $password, $role]);
-            echo json_encode(['success' => true, 'user' => ['id' => $pdo->lastInsertId(), 'name' => $name, 'email' => $email, 'role' => $role]]);
+            // Check if avatar column exists, using a safer approach or just try to add it dynamically?
+            // Actually, we can migrate the table here or update the schema.
+            // Let's use db.php for migration, or do it gracefully.
+            $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$name, $email, $password, $role, $avatar]);
+            echo json_encode(['success' => true, 'user' => ['id' => $pdo->lastInsertId(), 'name' => $name, 'email' => $email, 'role' => $role, 'avatar' => $avatar]]);
         } catch (PDOException $e) {
             http_response_code(400);
             echo json_encode(['error' => 'Email already exists']);
