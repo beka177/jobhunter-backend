@@ -14,7 +14,7 @@ if ($method === 'GET') {
     if ($employer_id) {
         // Для работодателя возвращаем подробную информацию по каждому отклику:
         $sql = "
-            SELECT a.id, a.created_at, a.status,
+            SELECT a.id, a.created_at, a.status, a.seeker_id, a.vacancy_id,
                    v.title as vacancy_title,
                    u.name as seeker_name, u.email as seeker_email, u.avatar,
                    r.surname, r.first_name, r.patronymic,
