@@ -88,10 +88,72 @@ if ($method === 'POST') {
 } elseif ($method === 'GET') {
     if ($action === 'stats') {
         $stats = [];
-        $stats['users'] = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
-        $stats['vacancies'] = $pdo->query("SELECT COUNT(*) FROM vacancies")->fetchColumn();
-        $stats['applications'] = $pdo->query("SELECT COUNT(*) FROM applications")->fetchColumn();
+        $stats['users']        = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+        $stats['vacancies']    = (int)$pdo->query("SELECT COUNT(*) FROM vacancies")->fetchColumn();
+        $stats['applications'] = (int)$pdo->query("SELECT COUNT(*) FROM applications")->fetchColumn();
+
+        // Расширенные данные:
+        $roleRows = $pdo->query("SELECT role, COUNT(*) AS c FROM users GROUP BY role")->fetchAll();
+        $stats['roles'] = ['seeker' => 0, 'employer' => 0, 'admin' => 0];
+        foreach ($roleRows as $r) { $stats['roles'][$r['role']] = (int)$r['c']; }
+
+        $statusRows = $pdo->query("SELECT status, COUNT(*) AS c FROM applications GROUP BY status")->fetchAll();
+        $stats['application_statuses'] = ['pending' => 0, 'accepted' => 0, 'rejected' => 0];
+        foreach ($statusRows as $r) { $stats['application_statuses'][$r['status']] = (int)$r['c']; }
+
+        $stats['banned_users']   = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE banned_until IS NOT NULL AND banned_until > NOW()")->fetchColumn();
+        $stats['favorites']      = (int)$pdo->query("SELECT COUNT(*) FROM favorites")->fetchColumn();
+
+        // Чат-метрики (таблицы могут не существовать — оборачиваем в try)
+        try {
+            $stats['conversations'] = (int)$pdo->query("SELECT COUNT(*) FROM conversations")->fetchColumn();
+            $stats['messages']      = (int)$pdo->query("SELECT COUNT(*) FROM messages")->fetchColumn();
+        } catch (PDOException $e) {
+            $stats['conversations'] = 0;
+            $stats['messages']      = 0;
+        }
+
+        // Регистрации за последние 7 дней
+        $stats['new_users_7d']   = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL 7 DAY")->fetchColumn();
+        $stats['new_vacancies_7d'] = (int)$pdo->query("SELECT COUNT(*) FROM vacancies WHERE created_at >= NOW() - INTERVAL 7 DAY")->fetchColumn();
+
+        // Топ-5 городов по числу вакансий
+        $stats['top_cities'] = $pdo->query("
+            SELECT city, COUNT(*) AS cnt
+            FROM vacancies
+            WHERE city IS NOT NULL AND city <> ''
+            GROUP BY city ORDER BY cnt DESC LIMIT 5
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
+        // Топ-5 работодателей по числу вакансий
+        $stats['top_employers'] = $pdo->query("
+            SELECT u.id, u.name, COUNT(v.id) AS vacancies_count
+            FROM users u
+            JOIN vacancies v ON v.employer_id = u.id
+            WHERE u.role = 'employer'
+            GROUP BY u.id, u.name ORDER BY vacancies_count DESC LIMIT 5
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
         echo json_encode($stats);
+    } elseif ($action === 'conversations') {
+        try {
+            $stmt = $pdo->query("
+                SELECT c.id, c.created_at, c.updated_at,
+                       c.seeker_id, c.employer_id, c.vacancy_id,
+                       us.name AS seeker_name, ue.name AS employer_name,
+                       v.title AS vacancy_title,
+                       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS messages_count,
+                       (SELECT body FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message
+                FROM conversations c
+                JOIN users us ON c.seeker_id = us.id
+                JOIN users ue ON c.employer_id = ue.id
+                LEFT JOIN vacancies v ON c.vacancy_id = v.id
+                ORDER BY c.updated_at DESC
+            ");
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (PDOException $e) {
+            echo json_encode([]);
+        }
     } elseif ($action === 'users') {
         $stmt = $pdo->query("SELECT id, name, email, role, created_at, banned_until FROM users ORDER BY created_at DESC");
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -118,6 +180,16 @@ if ($method === 'POST') {
         $stmt = $pdo->prepare("DELETE FROM vacancies WHERE id = ?");
         $stmt->execute([$id]);
         echo json_encode(['success' => true]);
+    } elseif ($action === 'conversation') {
+        $id = $_GET['id'] ?? null;
+        try {
+            $stmt = $pdo->prepare("DELETE FROM conversations WHERE id = ?");
+            $stmt->execute([$id]);
+            echo json_encode(['success' => true]);
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to delete']);
+        }
     } else {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid action']);
