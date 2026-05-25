@@ -1,0 +1,5 @@
+# Секреты — никогда не коммитить
+api/_secrets.php
+api/_secrets.*.php
+.env
+.env.local
