@@ -5,6 +5,11 @@ header('Content-Type: application/json');
 $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'OPTIONS') { http_response_code(200); exit; }
 
+// Автомиграция: добавляем колонку type для системных сообщений (например, об изменении статуса отклика).
+try {
+    $pdo->exec("ALTER TABLE messages ADD COLUMN type ENUM('text','system') DEFAULT 'text' AFTER body");
+} catch (PDOException $e) { /* уже существует */ }
+
 $action = $_GET['action'] ?? '';
 
 function respond($data, $code = 200) {
@@ -66,6 +71,9 @@ if ($method === 'GET' && $action === 'list') {
                (SELECT body FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
                (SELECT sender_id FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_sender_id,
                (SELECT created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+               (SELECT a.status FROM applications a
+                 WHERE a.seeker_id = c.seeker_id AND a.vacancy_id = c.vacancy_id
+                 ORDER BY a.created_at DESC LIMIT 1) AS application_status,
                (
                    SELECT COUNT(*) FROM messages m
                    WHERE m.conversation_id = c.id
@@ -134,7 +142,7 @@ if ($method === 'GET' && $action === 'messages') {
     $u->execute([$convId]);
 
     $stmt = $pdo->prepare("
-        SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
+        SELECT m.id, m.conversation_id, m.sender_id, m.body, m.type, m.created_at,
                u.name AS sender_name, u.avatar AS sender_avatar
         FROM messages m
         JOIN users u ON m.sender_id = u.id
@@ -147,7 +155,7 @@ if ($method === 'GET' && $action === 'messages') {
 
 // =============================================================
 // POST ?action=start — найти или создать диалог + (опционально) отправить первое сообщение
-// body: { seeker_id, employer_id, vacancy_id?, body? }
+// body: { seeker_id, employer_id, vacancy_id?, body?, type? }
 // =============================================================
 if ($method === 'POST' && $action === 'start') {
     $data = body();
@@ -162,15 +170,13 @@ if ($method === 'POST' && $action === 'start') {
     $conv = findOrCreateConversation($pdo, $seekerId, $employerId, $vacancyId);
 
     if ($msg !== '') {
-        // Отправитель определяется по тому, кто инициировал (передан в body как seeker_id или employer_id первой ролью).
-        // Здесь по соглашению клиента: если приходит из карточки вакансии, инициатор — соискатель.
-        // Для корректности используем переданный sender_id, если есть.
         $senderId = $data['sender_id'] ?? $seekerId;
         $role = participantRole($conv, $senderId);
         if (!$role) respond(['error' => 'sender_id not in conversation'], 400);
 
-        $stmt = $pdo->prepare("INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)");
-        $stmt->execute([$conv['id'], $senderId, $msg]);
+        $type = ($data['type'] ?? 'text') === 'system' ? 'system' : 'text';
+        $stmt = $pdo->prepare("INSERT INTO messages (conversation_id, sender_id, body, type) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$conv['id'], $senderId, $msg, $type]);
         $pdo->prepare("UPDATE conversations SET updated_at = NOW() WHERE id = ?")->execute([$conv['id']]);
     }
 
@@ -186,6 +192,7 @@ if ($method === 'POST' && $action === 'send') {
     $convId   = $data['conversation_id'] ?? null;
     $senderId = $data['sender_id']       ?? null;
     $msg      = trim($data['body'] ?? '');
+    $type     = ($data['type'] ?? 'text') === 'system' ? 'system' : 'text';
 
     if (!$convId || !$senderId || $msg === '') respond(['error' => 'conversation_id, sender_id, body required'], 400);
 
@@ -195,13 +202,13 @@ if ($method === 'POST' && $action === 'send') {
     if (!$conv) respond(['error' => 'Not found'], 404);
     if (!participantRole($conv, $senderId)) respond(['error' => 'Forbidden'], 403);
 
-    $stmt = $pdo->prepare("INSERT INTO messages (conversation_id, sender_id, body) VALUES (?, ?, ?)");
-    $stmt->execute([$convId, $senderId, $msg]);
+    $stmt = $pdo->prepare("INSERT INTO messages (conversation_id, sender_id, body, type) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$convId, $senderId, $msg, $type]);
     $msgId = $pdo->lastInsertId();
     $pdo->prepare("UPDATE conversations SET updated_at = NOW() WHERE id = ?")->execute([$convId]);
 
     $stmt = $pdo->prepare("
-        SELECT m.id, m.conversation_id, m.sender_id, m.body, m.created_at,
+        SELECT m.id, m.conversation_id, m.sender_id, m.body, m.type, m.created_at,
                u.name AS sender_name, u.avatar AS sender_avatar
         FROM messages m JOIN users u ON m.sender_id = u.id
         WHERE m.id = ?
