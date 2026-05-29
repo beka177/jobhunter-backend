@@ -3,3 +3,7 @@ api/_secrets.php
 api/_secrets.*.php
 .env
 .env.local
+
+# Пользовательские загрузки — храним структуру (.htaccess), игнорируем контент
+uploads/avatars/
+uploads/vacancies/

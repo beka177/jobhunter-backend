@@ -45,4 +45,9 @@ try {
 try {
     $pdo->exec("ALTER TABLE users ADD COLUMN avatar VARCHAR(255) NULL");
 } catch (PDOException $e) {}
+
+// Расширяем avatar до 500 символов — длинные URL загруженных файлов не влезают в 255
+try {
+    $pdo->exec("ALTER TABLE users MODIFY avatar VARCHAR(500) NULL");
+} catch (PDOException $e) {}
 ?>
