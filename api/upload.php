@@ -32,12 +32,8 @@ if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
 }
 
 $file = $_FILES['file'];
-$maxBytes = $kind === 'avatar' ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
-if ($file['size'] > $maxBytes) {
-    http_response_code(413);
-    echo json_encode(['error' => 'file too large']);
-    exit;
-}
+// Ограничение по размеру убрано — принимаем файл любого размера
+// (верхний предел задаётся только upload_max_filesize в php.ini).
 
 // MIME через finfo (не доверяем заголовку клиента и расширению)
 $finfo = new finfo(FILEINFO_MIME_TYPE);
