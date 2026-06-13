@@ -158,8 +158,43 @@ if ($method === 'POST') {
         $stmt = $pdo->query("SELECT id, name, email, role, created_at, banned_until FROM users ORDER BY created_at DESC");
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
     } elseif ($action === 'vacancies') {
-        $stmt = $pdo->query("SELECT v.id, v.title, v.employer_id, v.created_at, u.name as employer_name FROM vacancies v JOIN users u ON v.employer_id = u.id ORDER BY v.created_at DESC");
+        $stmt = $pdo->query("SELECT v.id, v.title, v.city, v.salary, v.employer_id, v.created_at, u.name as employer_name FROM vacancies v JOIN users u ON v.employer_id = u.id ORDER BY v.created_at DESC");
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    } elseif ($action === 'user_details') {
+        // Полная информация о пользователе + сводка активности
+        $uid = $_GET['id'] ?? null;
+        if (!$uid) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing id']);
+            exit;
+        }
+        $stmt = $pdo->prepare("SELECT id, name, email, role, created_at, banned_until, avatar FROM users WHERE id = ?");
+        $stmt->execute([$uid]);
+        $u = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$u) {
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+            exit;
+        }
+        $cnt = function ($sql) use ($pdo, $uid) {
+            $s = $pdo->prepare($sql);
+            $s->execute([$uid]);
+            return (int)$s->fetchColumn();
+        };
+        $u['vacancies_count']    = $cnt("SELECT COUNT(*) FROM vacancies WHERE employer_id = ?");
+        $u['applications_count'] = $cnt("SELECT COUNT(*) FROM applications WHERE seeker_id = ?");
+        $u['favorites_count']    = $cnt("SELECT COUNT(*) FROM favorites WHERE user_id = ?");
+        try {
+            $s = $pdo->prepare("SELECT COUNT(*) FROM conversations WHERE seeker_id = ? OR employer_id = ?");
+            $s->execute([$uid, $uid]);
+            $u['conversations_count'] = (int)$s->fetchColumn();
+        } catch (PDOException $e) {
+            $u['conversations_count'] = 0;
+        }
+        $rs = $pdo->prepare("SELECT profession, city, phone FROM resumes WHERE user_id = ?");
+        $rs->execute([$uid]);
+        $u['resume'] = $rs->fetch(PDO::FETCH_ASSOC) ?: null;
+        echo json_encode($u);
     } elseif ($action === 'user_conversations') {
         // Все переписки конкретного пользователя (как соискателя или как работодателя)
         $uid = $_GET['user_id'] ?? null;
@@ -214,9 +249,10 @@ if ($method === 'POST') {
         // Все резюме пользователей (для просмотра администратором)
         try {
             $stmt = $pdo->query("
-                SELECT r.id, r.user_id, r.surname, r.first_name, r.patronymic,
-                       r.city, r.phone, r.profession,
-                       r.education_level, r.education_institution, r.skills, r.updated_at,
+                SELECT r.id, r.user_id, r.surname, r.first_name, r.patronymic, r.gender,
+                       r.city, r.phone, r.birthday, r.citizenship, r.work_permit, r.profession,
+                       r.education_level, r.education_institution, r.education_faculty,
+                       r.education_specialization, r.education_year, r.skills, r.updated_at,
                        u.name AS user_name, u.email AS user_email, u.role AS user_role
                 FROM resumes r
                 JOIN users u ON r.user_id = u.id
