@@ -210,6 +210,22 @@ if ($method === 'POST') {
         } catch (PDOException $e) {
             echo json_encode([]);
         }
+    } elseif ($action === 'resumes') {
+        // Все резюме пользователей (для просмотра администратором)
+        try {
+            $stmt = $pdo->query("
+                SELECT r.id, r.user_id, r.surname, r.first_name, r.patronymic,
+                       r.city, r.phone, r.profession,
+                       r.education_level, r.education_institution, r.skills, r.updated_at,
+                       u.name AS user_name, u.email AS user_email, u.role AS user_role
+                FROM resumes r
+                JOIN users u ON r.user_id = u.id
+                ORDER BY r.updated_at DESC
+            ");
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (PDOException $e) {
+            echo json_encode([]);
+        }
     } else {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid action']);
