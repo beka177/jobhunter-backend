@@ -160,6 +160,56 @@ if ($method === 'POST') {
     } elseif ($action === 'vacancies') {
         $stmt = $pdo->query("SELECT v.id, v.title, v.employer_id, v.created_at, u.name as employer_name FROM vacancies v JOIN users u ON v.employer_id = u.id ORDER BY v.created_at DESC");
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    } elseif ($action === 'user_conversations') {
+        // Все переписки конкретного пользователя (как соискателя или как работодателя)
+        $uid = $_GET['user_id'] ?? null;
+        if (!$uid) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing user_id']);
+            exit;
+        }
+        try {
+            $stmt = $pdo->prepare("
+                SELECT c.id, c.created_at, c.updated_at,
+                       c.seeker_id, c.employer_id, c.vacancy_id,
+                       us.name AS seeker_name, ue.name AS employer_name,
+                       v.title AS vacancy_title,
+                       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS messages_count,
+                       (SELECT body FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message
+                FROM conversations c
+                JOIN users us ON c.seeker_id = us.id
+                JOIN users ue ON c.employer_id = ue.id
+                LEFT JOIN vacancies v ON c.vacancy_id = v.id
+                WHERE c.seeker_id = ? OR c.employer_id = ?
+                ORDER BY c.updated_at DESC
+            ");
+            $stmt->execute([$uid, $uid]);
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (PDOException $e) {
+            echo json_encode([]);
+        }
+    } elseif ($action === 'conversation_messages') {
+        // Все сообщения одной переписки (для просмотра администратором)
+        $cid = $_GET['id'] ?? null;
+        if (!$cid) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing id']);
+            exit;
+        }
+        try {
+            $stmt = $pdo->prepare("
+                SELECT m.id, m.conversation_id, m.sender_id, m.body, m.type, m.created_at,
+                       u.name AS sender_name
+                FROM messages m
+                LEFT JOIN users u ON m.sender_id = u.id
+                WHERE m.conversation_id = ?
+                ORDER BY m.created_at ASC
+            ");
+            $stmt->execute([$cid]);
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (PDOException $e) {
+            echo json_encode([]);
+        }
     } else {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid action']);
