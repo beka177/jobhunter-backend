@@ -191,9 +191,18 @@ if ($method === 'POST') {
         } catch (PDOException $e) {
             $u['conversations_count'] = 0;
         }
-        $rs = $pdo->prepare("SELECT profession, city, phone FROM resumes WHERE user_id = ?");
+        $rs = $pdo->prepare("
+            SELECT id, user_id, surname, first_name, patronymic, gender, city, phone,
+                   birthday, citizenship, work_permit, profession,
+                   education_level, education_institution, education_faculty,
+                   education_specialization, education_year, skills, updated_at
+            FROM resumes WHERE user_id = ?
+        ");
         $rs->execute([$uid]);
         $u['resume'] = $rs->fetch(PDO::FETCH_ASSOC) ?: null;
+        $vs = $pdo->prepare("SELECT id, title, city, salary, created_at FROM vacancies WHERE employer_id = ? ORDER BY created_at DESC");
+        $vs->execute([$uid]);
+        $u['vacancies'] = $vs->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode($u);
     } elseif ($action === 'user_conversations') {
         // Все переписки конкретного пользователя (как соискателя или как работодателя)
