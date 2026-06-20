@@ -32,7 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 r.education_faculty, 
                 r.education_specialization as education_specialty, 
                 r.education_year, 
-                r.profession, 
+                r.profession,
+                r.experience,
                 r.skills
             FROM users u
             LEFT JOIN resumes r ON u.id = r.user_id
@@ -47,4 +48,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         echo json_encode(['error' => $e->getMessage()]);
     }
 }
-?>
+?>  

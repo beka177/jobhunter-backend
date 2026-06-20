@@ -193,7 +193,7 @@ if ($method === 'POST') {
         }
         $rs = $pdo->prepare("
             SELECT id, user_id, surname, first_name, patronymic, gender, city, phone,
-                   birthday, citizenship, work_permit, profession,
+                   birthday, citizenship, work_permit, profession, experience,
                    education_level, education_institution, education_faculty,
                    education_specialization, education_year, skills, updated_at
             FROM resumes WHERE user_id = ?
@@ -259,7 +259,7 @@ if ($method === 'POST') {
         try {
             $stmt = $pdo->query("
                 SELECT r.id, r.user_id, r.surname, r.first_name, r.patronymic, r.gender,
-                       r.city, r.phone, r.birthday, r.citizenship, r.work_permit, r.profession,
+                       r.city, r.phone, r.birthday, r.citizenship, r.work_permit, r.profession, r.experience,
                        r.education_level, r.education_institution, r.education_faculty,
                        r.education_specialization, r.education_year, r.skills, r.updated_at,
                        u.name AS user_name, u.email AS user_email, u.role AS user_role
